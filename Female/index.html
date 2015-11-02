@@ -1,0 +1,69 @@
+<html>
+<head>
+	<title>Lesson 1</title>
+</head>
+<script src="../Vendor/tree.min.js"></script>
+<script src="Animation.js"></script>
+<script src="AnimationHandler.js"></script>
+<script src="KeyFrameAnimation.js"></script>
+<script src="ColladaLoader.js"></script>
+<body>
+	<div id="content">
+	</div>
+</body>
+<script type="text/javascript">
+	var scene, camera, renderer;
+    var geometry, material, mesh, animation;
+    
+    var clock = new THREE.Clock();
+
+    init();
+
+    function init() {
+
+        scene = new THREE.Scene();
+
+        camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
+        camera.position.z = 1000;
+
+       	var loader = new THREE.ColladaLoader();
+		loader.load( "female.dae", function(collada){
+            mesh = collada.scene;
+            
+            mesh.traverse( function ( child ) {
+                if ( child instanceof THREE.SkinnedMesh ) {
+                    animation = new THREE.Animation( child, child.geometry.animation );
+                    animation.play();
+                }
+            } );
+                
+            mesh.scale.x = mesh.scale.y = mesh.scale.z = 400;
+            mesh.updateMatrix();
+            
+			scene.add(mesh);
+            scene.add( new THREE.AmbientLight( 0xcccccc ) );
+            
+            var light = new THREE.DirectionalLight( 0xffffff, 1.5 );
+            light.position.set( 0, -4, -4 ).normalize();
+            scene.add( light );
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize( window.innerWidth, window.innerHeight );
+    
+            document.body.appendChild( renderer.domElement );
+            animate();
+		});
+
+    }
+
+    function animate() {
+
+        requestAnimationFrame( animate );
+
+        //THREE.AnimationHandler.update( clock.getDelta() );
+        renderer.render( scene, camera );
+        animation.update(0.01);
+
+    }
+</script>
+</html>
