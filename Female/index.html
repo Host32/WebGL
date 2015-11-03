@@ -2,11 +2,11 @@
 <head>
 	<title>Lesson 1</title>
 </head>
-<script src="../Vendor/tree.min.js"></script>
-<script src="Animation.js"></script>
-<script src="AnimationHandler.js"></script>
-<script src="KeyFrameAnimation.js"></script>
-<script src="ColladaLoader.js"></script>
+<script src="../Vendor/three.js"></script>
+<script src="../Vendor/Animation.js"></script>
+<script src="../Vendor/AnimationHandler.js"></script>
+<script src="../Vendor/KeyFrameAnimation.js"></script>
+<script src="../Vendor/ColladaLoader.js"></script>
 <body>
 	<div id="content">
 	</div>
@@ -36,6 +36,8 @@
                     animation.play();
                 }
             } );
+            
+            console.log(collada);
                 
             mesh.scale.x = mesh.scale.y = mesh.scale.z = 400;
             mesh.updateMatrix();
