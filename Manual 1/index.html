@@ -218,11 +218,11 @@
 		gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer);
     	gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 		
-		gl.drawArrays(gl.TRIANGLES, 0, cubeVertexPositionBuffer.numItems);
+		//gl.drawArrays(gl.TRIANGLES, 0, cubeVertexPositionBuffer.numItems);
 		
-		//gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer);
-		//setMatrixUniforms();
-        //gl.drawElements(gl.TRIANGLES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer);
+		setMatrixUniforms();
+        gl.drawElements(gl.TRIANGLES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 	}
 	
 	function tick() {
@@ -234,39 +234,45 @@
 	function webGLStart(){
 		var canvas = document.getElementById("lesson01-canvas");
 		
-		var xhr = new XMLHttpRequest();
+		//var xhr = new XMLHttpRequest();
  
-		xhr.onreadystatechange = function () { 
-			if (xhr.readyState == xhr.DONE) {
-				if (xhr.status == 200 && xhr.response) {
-					cubeVertices = [];
-					cubeIndices = [];
-					
-					var geometry = JSON.parse(xhr.response);
-					var scale = ( geometry.scale !== undefined ) ? 1.0 / geometry.scale : 1.0;
-					
-					for(var i = 0; i < geometry.vertices.length; ++i){
-						cubeVertices.push(geometry.vertices[i] * scale);
-					}
-					
-					console.log(geometry);
-					
-					initGL(canvas);
-					initShaders();
-					initBuffers();
-					
-					gl.clearColor(0.0, 0.0, 0.0, 1.0);
-					gl.enable(gl.DEPTH_TEST);
-					
-					tick();
-					console.log(gl);
-				} else {
-				}
+		//xhr.onreadystatechange = function () { 
+			//if (xhr.readyState == xhr.DONE) {
+				//if (xhr.status == 200 && xhr.response) {
+		var loader = new THREE.JSONLoader();
+		loader.load( "female.json", function(geometry){
+			cubeVertices = [];
+			cubeIndices = [];
+            
+			for(var i = 0; i < geometry.vertices.length; i++){
+				cubeVertices.push(geometry.vertices[i].x);
+				cubeVertices.push(geometry.vertices[i].y);
+				cubeVertices.push(geometry.vertices[i].z);
 			}
-		}
+			for(var i = 0; i < geometry.faces.length; i++){
+				cubeIndices.push(geometry.faces[i].a);
+				cubeIndices.push(geometry.faces[i].b);
+				cubeIndices.push(geometry.faces[i].c);
+			}
+			console.log(geometry);
+			
+			initGL(canvas);
+			initShaders();
+			initBuffers();
+			
+			gl.clearColor(0.0, 0.0, 0.0, 1.0);
+			gl.enable(gl.DEPTH_TEST);
+			
+			tick();
+			console.log(gl);
+		});
+				//} else {
+				//}
+			//}
+		//}
 		
-		xhr.open('GET', "female.json", true);
-		xhr.send();
+		//xhr.open('GET', "female.json", true);
+		//xhr.send();
 	}
 </script>
 <body onload="webGLStart();">
