@@ -4,11 +4,7 @@
 </head>
 <script src="../Vendor/gl-matrix.js"></script>
 <script src="../Vendor/webgl-utils.js"></script>
-<script src="../Vendor/tree.min.js"></script>
-<script src="../Vendor/Animation.js"></script>
-<script src="../Vendor/AnimationHandler.js"></script>
-<script src="../Vendor/KeyFrameAnimation.js"></script>
-<script src="../Vendor/ColladaLoader.js"></script>
+<script src="../Vendor/three.js"></script>
 <script id="shader-fs" type="x-shader/x-fragment">
   precision mediump float;
   
@@ -30,11 +26,15 @@
 <script type="text/javascript">
 
 	var gl;
-	
+	var clock = new THREE.Clock();
+		
     var cubeVertexPositionBuffer;
     var cubeVertexIndexBuffer;
 	var cubeVertices;
 	var cubeIndices;
+	
+	var cubeAnimation;
+	var cubeMesh;
 	
 	var mvMatrix = mat4.create();
     var pMatrix = mat4.create();
@@ -159,19 +159,6 @@
         return degrees * Math.PI / 180;
     }
 	
-	function animate() {
-		var timeNow = new Date().getTime();
-		if (lastTime != 0) {
-			var elapsed = timeNow - lastTime;
-		
-			xRot += (90 * elapsed) / 1000.0;
-            yRot += (90 * elapsed) / 1000.0;
-            zRot += (90 * elapsed) / 1000.0;
-		}
-		lastTime = timeNow;
-	}
-	
-	
 	function initShaders() {
 		var fragmentShader = getShader(gl, "shader-fs");
 		var vertexShader = getShader(gl, "shader-vs");
@@ -225,12 +212,48 @@
         gl.drawElements(gl.TRIANGLES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 	}
 	
-	function tick() {
-    	requestAnimFrame(tick);
-		drawScene();
-    	animate();
+	function animate() {
+		var timeNow = new Date().getTime();
+		var elapsed = timeNow - lastTime;
+		if (lastTime != 0) {
+			xRot += (90 * elapsed) / 1000.0;
+            yRot += (90 * elapsed) / 1000.0;
+            zRot += (90 * elapsed) / 1000.0;
+		}
+		lastTime = timeNow;
+		
+		if(cubeAnimation){
+			cubeAnimation.update(clock.getDelta());
+		}
+		
+		updateBuffers();
 	}
 	
+	function tick() {
+    	requestAnimFrame(tick);
+    	animate();
+		drawScene();
+	}
+	
+	function updateBuffers(){
+		cubeVertices = [];
+		cubeIndices = [];
+		
+		var geometry = cubeMesh.geometry;
+		
+		for(var i = 0; i < geometry.vertices.length; i++){
+			cubeVertices.push(geometry.vertices[i].x);
+			cubeVertices.push(geometry.vertices[i].y);
+			cubeVertices.push(geometry.vertices[i].z);
+		}
+		for(var i = 0; i < geometry.faces.length; i++){
+			cubeIndices.push(geometry.faces[i].a);
+			cubeIndices.push(geometry.faces[i].b);
+			cubeIndices.push(geometry.faces[i].c);
+		}
+	}
+	
+	var cont = 0;
 	function webGLStart(){
 		var canvas = document.getElementById("lesson01-canvas");
 		
@@ -240,21 +263,16 @@
 			//if (xhr.readyState == xhr.DONE) {
 				//if (xhr.status == 200 && xhr.response) {
 		var loader = new THREE.JSONLoader();
-		loader.load( "female.json", function(geometry){
-			cubeVertices = [];
-			cubeIndices = [];
-            
-			for(var i = 0; i < geometry.vertices.length; i++){
-				cubeVertices.push(geometry.vertices[i].x);
-				cubeVertices.push(geometry.vertices[i].y);
-				cubeVertices.push(geometry.vertices[i].z);
-			}
-			for(var i = 0; i < geometry.faces.length; i++){
-				cubeIndices.push(geometry.faces[i].a);
-				cubeIndices.push(geometry.faces[i].b);
-				cubeIndices.push(geometry.faces[i].c);
-			}
-			console.log(geometry);
+		loader.load( "female.json", function(geometry, materials){
+			
+			cubeMesh  = new THREE.SkinnedMesh(geometry);
+			
+			updateBuffers();
+			
+			cubeAnimation = new THREE.Animation( cubeMesh, cubeMesh.geometry.animations[0] );
+			cubeAnimation.play();
+			
+			console.log(cubeMesh);
 			
 			initGL(canvas);
 			initShaders();
@@ -264,7 +282,6 @@
 			gl.enable(gl.DEPTH_TEST);
 			
 			tick();
-			console.log(gl);
 		});
 				//} else {
 				//}
