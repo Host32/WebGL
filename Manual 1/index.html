@@ -1,4 +1,5 @@
 <html>
+
 <head>
 	<title>Lesson 1</title>
 </head>
@@ -6,25 +7,23 @@
 <script src="../Vendor/webgl-utils.js"></script>
 <script src="../Vendor/three.js"></script>
 <script id="shader-fs" type="x-shader/x-fragment">
-  precision mediump float;
-  
-  void main(void) {
-    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-  }
+	precision mediump float; 
+	void main(void) { 
+		gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); 
+	}
 </script>
 
 <script id="shader-vs" type="x-shader/x-vertex">
-  attribute vec3 aVertexPosition;
-
-  uniform mat4 uMVMatrix;
-  uniform mat4 uPMatrix;
-  
-  void main(void) {
-    gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-  }
+	attribute vec3 aVertexPosition; 
+	
+	uniform mat4 uMVMatrix; 
+	uniform mat4 uPMatrix; 
+	
+	void main(void) { 
+		gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); 
+	}
 </script>
 <script type="text/javascript">
-
 	var gl;
 	var clock = new THREE.Clock();
 		
@@ -291,8 +290,11 @@
 		//xhr.open('GET', "female.json", true);
 		//xhr.send();
 	}
+
 </script>
+
 <body onload="webGLStart();">
 	<canvas id="lesson01-canvas" style="border: none;" width="500" height="500"></canvas>
 </body>
+
 </html>
