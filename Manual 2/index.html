@@ -253,14 +253,14 @@
         // prepara o buffer de indices de skin
         skinIndexBuffer = gl.createBuffer();
         skinIndexBuffer.itemSize = 4;
-        skinIndexBuffer.numItems = vertices.length / 4;
+        skinIndexBuffer.numItems = skinIndices.length / 4;
         gl.bindBuffer(gl.ARRAY_BUFFER, skinIndexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Uint16Array(skinIndices), gl.STATIC_DRAW);
 
         // prepara o buffer de pesos de skin
         skinWeightBuffer = gl.createBuffer();
         skinWeightBuffer.itemSize = 4;
-        skinWeightBuffer.numItems = vertices.length / 4;
+        skinWeightBuffer.numItems = skinWeights.length / 4;
         gl.bindBuffer(gl.ARRAY_BUFFER, skinWeightBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(skinWeights), gl.STATIC_DRAW);
     }
