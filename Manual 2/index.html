@@ -12,8 +12,7 @@
     gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
   }
 </script>
-
-<script id="shader-vs" type="x-shader/x-vertex">
+<script type="x-shader/x-vertex">
   attribute vec3 aVertexPosition;
 
   uniform mat4 uMVMatrix;
@@ -23,6 +22,43 @@
     gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
   }
 </script>
+<script id="shader-vs" type="x-shader/x-vertex">
+	attribute vec3 position;
+	attribute vec4 skinIndex;
+	attribute vec4 skinWeight;
+	
+	uniform mat4 modelViewMatrix;
+	uniform mat4 projectionMatrix;
+	uniform mat4 bindMatrix;
+	uniform mat4 bindMatrixInverse;
+	uniform mat4 boneGlobalMatrices[ 70 ];
+	
+	mat4 getBoneMatrix( const in float i ) {
+		mat4 bone = boneGlobalMatrices[ int(i) ];
+		return bone;
+	}
+	
+	void main(void) {
+		vec3 transformed = vec3( position );
+	
+		mat4 boneMatX = getBoneMatrix( skinIndex.x );
+		mat4 boneMatY = getBoneMatrix( skinIndex.y );
+		mat4 boneMatZ = getBoneMatrix( skinIndex.z );
+		mat4 boneMatW = getBoneMatrix( skinIndex.w );
+	
+		vec4 skinVertex = bindMatrix * vec4( transformed, 1.0 );
+		vec4 skinned = vec4( 0.0 );
+		skinned += boneMatX * skinVertex * skinWeight.x;
+		skinned += boneMatY * skinVertex * skinWeight.y;
+		skinned += boneMatZ * skinVertex * skinWeight.z;
+		skinned += boneMatW * skinVertex * skinWeight.w;
+		skinned  = bindMatrixInverse * skinned;
+		
+		vec4 mvPosition = modelViewMatrix * skinned;
+		
+		gl_Position = projectionMatrix * mvPosition;
+	}
+</script>
 <script type="text/javascript">
 
 	var gl;
@@ -30,8 +66,13 @@
 		
     var vertexPositionBuffer;
     var vertexIndexBuffer;
+	var skinIndexBuffer;
+	var skinWeightBuffer;
+	
 	var vertices;
 	var indices;
+	var skinIndices;
+	var skinWeights;
 	
 	var animation;
 	var mesh;
@@ -107,17 +148,27 @@
 		gl.useProgram(shaderProgram);
 		
 		// prepara os atributos
-		shaderProgram.aVertexPosition = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-   		gl.enableVertexAttribArray(shaderProgram.aVertexPosition);
+		shaderProgram.position = gl.getAttribLocation(shaderProgram, "position");
+   		gl.enableVertexAttribArray(shaderProgram.position);
+		shaderProgram.skinIndex = gl.getAttribLocation(shaderProgram, "skinIndex");
+   		gl.enableVertexAttribArray(shaderProgram.skinIndex);
+		shaderProgram.skinWeight = gl.getAttribLocation(shaderProgram, "skinWeight");
+   		gl.enableVertexAttribArray(shaderProgram.skinWeight);
 		
 		// prepara as uniforms
-		shaderProgram.uPMatrix = gl.getUniformLocation(shaderProgram, "uPMatrix");
-        shaderProgram.uMVMatrix = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+		shaderProgram.projectionMatrix = gl.getUniformLocation(shaderProgram, "projectionMatrix");
+        shaderProgram.modelViewMatrix = gl.getUniformLocation(shaderProgram, "modelViewMatrix");
+        shaderProgram.bindMatrix = gl.getUniformLocation(shaderProgram, "bindMatrix");
+        shaderProgram.bindMatrixInverse = gl.getUniformLocation(shaderProgram, "bindMatrixInverse");
+        shaderProgram.boneGlobalMatrices = gl.getUniformLocation(shaderProgram, "boneGlobalMatrices");
 	}
 	
 	function setMatrixUniforms() {
-        gl.uniformMatrix4fv(shaderProgram.uPMatrix, false, pMatrix);
-        gl.uniformMatrix4fv(shaderProgram.uMVMatrix, false, mvMatrix);
+        gl.uniformMatrix4fv(shaderProgram.projectionMatrix, false, pMatrix);
+        gl.uniformMatrix4fv(shaderProgram.modelViewMatrix, false, mvMatrix);
+        gl.uniformMatrix4fv(shaderProgram.bindMatrix, false, mesh.bindMatrix.elements);
+        gl.uniformMatrix4fv(shaderProgram.bindMatrixInverse, false, mesh.bindMatrixInverse.elements);
+        gl.uniformMatrix4fv(shaderProgram.boneGlobalMatrices, false, mesh.skeleton.boneMatrices);
     }
 	
 	function drawScene(){
@@ -132,19 +183,30 @@
 		mat4.scale(mvMatrix, [100, 100, 100]);
 		setMatrixUniforms();
 		
+		// envia os indices de skin pra shader
+		gl.bindBuffer(gl.ARRAY_BUFFER, skinIndexBuffer);
+    	gl.vertexAttribPointer(shaderProgram.skinIndex, skinIndexBuffer.itemSize, gl.UNSIGNED_SHORT, false, 0, 0);
+		
+		// envia os pesos de skin pra shader
+		gl.bindBuffer(gl.ARRAY_BUFFER, skinWeightBuffer);
+    	gl.vertexAttribPointer(shaderProgram.skinWeight, skinWeightBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
 		// envia os vertices pra shader
 		gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
-    	gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    	gl.vertexAttribPointer(shaderProgram.position, vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 		
 		// envia os indices pra shader
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
 		setMatrixUniforms();
         gl.drawElements(gl.TRIANGLES, vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+		
 	}
 	
 	function initBuffers(){
 		vertices = [];
 		indices = [];
+		skinIndices = [];
+		skinWeights = [];
 		
 		var geometry = mesh.geometry;
 		
@@ -162,6 +224,22 @@
 			indices.push(geometry.faces[i].c);
 		}
 		
+		// converte os indices de Skin do THREEjs
+		for(var i = 0; i < geometry.skinIndices.length; i++){
+			skinIndices.push(geometry.skinIndices[i].x);
+			skinIndices.push(geometry.skinIndices[i].y);
+			skinIndices.push(geometry.skinIndices[i].z);
+			skinIndices.push(geometry.skinIndices[i].w);
+		}
+		
+		// converte os pesos de Skin do THREEjs
+		for(var i = 0; i < geometry.skinWeights.length; i++){
+			skinWeights.push(geometry.skinWeights[i].x);
+			skinWeights.push(geometry.skinWeights[i].y);
+			skinWeights.push(geometry.skinWeights[i].z);
+			skinWeights.push(geometry.skinWeights[i].w);
+		}
+		
 		// prepara o buffer de vertices
 		vertexPositionBuffer = gl.createBuffer();
 		vertexPositionBuffer.itemSize = 3;
@@ -175,6 +253,20 @@
         vertexIndexBuffer.numItems = indices.length;
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
 		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+		
+		// prepara o buffer de indices de skin
+		skinIndexBuffer = gl.createBuffer();
+		skinIndexBuffer.itemSize = 4;
+		skinIndexBuffer.numItems = vertices.length/4;
+		gl.bindBuffer(gl.ARRAY_BUFFER, skinIndexBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Uint16Array(skinIndices), gl.STATIC_DRAW);
+		
+		// prepara o buffer de pesos de skin
+		skinWeightBuffer = gl.createBuffer();
+		skinWeightBuffer.itemSize = 4;
+		skinWeightBuffer.numItems = vertices.length/4;
+		gl.bindBuffer(gl.ARRAY_BUFFER, skinWeightBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(skinWeights), gl.STATIC_DRAW);
 	}
 	
 	function animate() {
@@ -185,7 +277,7 @@
 	
 	function tick() {
     	requestAnimFrame(tick);
-    	animate();
+    	//animate();
 		drawScene();
 	}
 	
@@ -196,8 +288,8 @@
 		loader.load( "female.json", function(geometry, materials){
 			
 			mesh  = new THREE.SkinnedMesh(geometry);
-			animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
-			animation.play();
+			//animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
+			//animation.play();
 			
 			console.log(mesh);
 			
