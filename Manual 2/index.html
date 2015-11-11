@@ -265,34 +265,56 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, skinWeightBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(skinWeights), gl.STATIC_DRAW);
     }
-
+    
     var cont = 0;
     function animate() {
-        bones = [];
         
-        var geometry = mesh.geometry;
         // converte os bones do THREEjs
-        for (var i = 0; i < mesh.skeleton.bones.length; i++) {
-            var matrix = mesh.skeleton.bones[i].matrix;
-            
-            if(geometry.animations[0].hierarchy[i].keys[cont]){
-                var pos = geometry.animations[0].hierarchy[i].keys[cont].pos;
-                var rot = geometry.animations[0].hierarchy[i].keys[cont].rot;
-                var scale = geometry.animations[0].hierarchy[i].keys[cont].scl;
-                
-                matrix.setPosition(new THREE.Vector3(pos[0],pos[1],pos[2]));
-                matrix.makeRotationFromQuaternion(new THREE.Quaternion(rot[0], rot[1], rot[2], rot[3]));
-                matrix.scale(new THREE.Vector3(scale[0],scale[1],scale[2]));
-            }
-            
-            for(var j = 0; j < matrix.elements.length; j++){
-                 bones.push(matrix.elements[j]);
-            }
-        }
+        //for (var i = 0; i < mesh.skeleton.bones.length; i++) {
+        //    var bone = mesh.skeleton.bones[i];
+        //    var matrix;
+        //    if(bone.parent instanceof THREE.Bone){
+        //        matrix = bone.parent.matrixWorld;
+        //    } else{
+        //        matrix = bone.matrixWorld;
+        //    }
+        //    
+        //    if(geometry.animations[0].hierarchy[i].keys[cont]){
+        //        var pos = geometry.animations[0].hierarchy[i].keys[cont].pos;
+        //        var rot = geometry.animations[0].hierarchy[i].keys[cont].rot;
+        //        var scale = geometry.animations[0].hierarchy[i].keys[cont].scl;
+        //        
+        //        matrix.setPosition(new THREE.Vector3(pos[0],pos[1],pos[2]));
+        //        matrix.makeRotationFromQuaternion(new THREE.Quaternion(rot[0], rot[1], rot[2], rot[3]));
+        //        matrix.scale(new THREE.Vector3(scale[0],scale[1],scale[2]));
+        //    }
+        //    
+        //    for(var j = 0; j < matrix.elements.length; j++){
+        //         bones.push(matrix.elements[j]);
+        //    }
+        //}
         
-        cont++;
-        if(cont >= 278){
-            cont = 0;
+        if(animation){
+            animation.update(clock.getDelta());
+            
+            bones = [];
+            for (var i = 0; i < animation.hierarchy.length; i++) {
+                var bone = animation.hierarchy[i];
+                var matrix = bone.matrixWorld;
+                
+                matrix.setPosition(bone.position);
+                matrix.makeRotationFromQuaternion(bone.quaternion);
+                matrix.scale(bone.scale);
+            
+                for(var j = 0; j < animation.hierarchy[i].matrixWorld.elements.length; j++){
+                    bones.push(animation.hierarchy[i].matrixWorld.elements[j]);
+                }
+            }
+            
+            if(cont < 100){
+                console.log(animation);
+                cont++;
+            }
         }
     }
 
@@ -309,8 +331,8 @@
         loader.load("female.json", function (geometry, materials) {
 
             mesh = new THREE.SkinnedMesh(geometry);
-            //animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
-            //animation.play();
+            animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
+            animation.play();
 
             console.log(mesh);
 
