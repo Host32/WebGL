@@ -14,7 +14,7 @@
     uniform sampler2D sampler;
     
     void main(void) { 
-        gl_FragColor = texture2D(sampler, vTextureCoord);
+        gl_FragColor = texture2D(sampler, vTextureCoord.st);;
         //gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); 
     }
 </script>
@@ -217,6 +217,9 @@
         gl.drawElements(gl.TRIANGLES, vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 
     }
+    
+	function handleLoadedTexture(texture) {
+    }
 	
     function handleLoadedTexture(texture) {
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -225,6 +228,7 @@
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mesh.material.map.image);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.generateMipmap(gl.TEXTURE_2D);
     
         gl.uniform1i(shaderProgram.sampler, 0);
     }
@@ -272,7 +276,7 @@
             textureCoords.push(uvs[i].x);
             textureCoords.push(uvs[i].y);
         }
-        
+
         // converte os indices de Skin do THREEjs
         for (var i = 0; i < geometry.skinIndices.length; i++) {
             skinIndices.push(geometry.skinIndices[i].x);
@@ -350,7 +354,7 @@
         var canvas = document.getElementById("lesson01-canvas");
 
         var loader = new THREE.JSONLoader();
-        loader.load("female.json", function (geometry, materials) {
+        loader.load("cube.json", function (geometry, materials) {
             var originalMaterial = materials[ 0 ];
             originalMaterial.skinning = true;
             
