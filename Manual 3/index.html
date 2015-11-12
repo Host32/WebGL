@@ -15,7 +15,6 @@
     
     void main(void) { 
         gl_FragColor = texture2D(sampler, vTextureCoord);
-        //gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); 
     }
 </script>
 <script type="x-shader/x-vertex">
@@ -192,7 +191,8 @@
         // ajusta perspectiva, posicionamento e tamanho
         mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 1, 100, pMatrix);
         mat4.identity(mvMatrix);
-        mat4.translate(mvMatrix, [0.0, 0.0, -5.0]);
+        mat4.translate(mvMatrix, [0.0, -1.0, -5.0]);
+        mat4.scale(mvMatrix, [2,2,2]);
         setMatrixUniforms();
 
         // envia os indices de skin pra shader
@@ -357,8 +357,6 @@
             mesh = new THREE.SkinnedMesh(geometry, originalMaterial);
             animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
             animation.play();
-
-            console.log(mesh);
 
             initGL(canvas);
             initShaders();
