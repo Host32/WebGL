@@ -46,10 +46,10 @@
         vec4 skinVertex = bindMatrix * vec4( transformed, 1.0 ); 
         
         vec4 skinned = vec4( 0.0 ); 
-        skinned += boneMatZ * skinVertex * skinWeight.x; 
-        skinned += boneMatW * skinVertex * skinWeight.y; 
-        skinned += boneMatY * skinVertex * skinWeight.z; 
-        skinned += boneMatX * skinVertex * skinWeight.w; 
+        skinned += boneMatX * skinVertex * skinWeight.x; 
+        skinned += boneMatY * skinVertex * skinWeight.y; 
+        skinned += boneMatZ * skinVertex * skinWeight.z; 
+        skinned += boneMatW * skinVertex * skinWeight.w; 
         skinned = bindMatrixInverse * skinned; 
         
         vec4 mvPosition = modelViewMatrix * skinned; 
@@ -176,7 +176,7 @@
         mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 1, 100, pMatrix);
         mat4.identity(mvMatrix);
         mat4.translate(mvMatrix, [0.0, 0.0, -5.0]);
-        mat4.scale(mvMatrix, [100, 100, 100]);
+        //mat4.scale(mvMatrix, [100, 100, 100]);
         setMatrixUniforms();
 
         // envia os indices de skin pra shader

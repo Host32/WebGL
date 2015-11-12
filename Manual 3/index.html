@@ -14,7 +14,7 @@
     uniform sampler2D sampler;
     
     void main(void) { 
-        gl_FragColor = texture2D(sampler, vec2(vTextureCoord.s, vTextureCoord.t));
+        gl_FragColor = texture2D(sampler, vTextureCoord);
         //gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); 
     }
 </script>
@@ -55,10 +55,10 @@
         vec4 skinVertex = bindMatrix * vec4( transformed, 1.0 ); 
         
         vec4 skinned = vec4( 0.0 ); 
-        skinned += boneMatZ * skinVertex * skinWeight.x; 
-        skinned += boneMatW * skinVertex * skinWeight.y; 
-        skinned += boneMatY * skinVertex * skinWeight.z; 
-        skinned += boneMatX * skinVertex * skinWeight.w;  
+        skinned += boneMatX * skinVertex * skinWeight.x; 
+        skinned += boneMatY * skinVertex * skinWeight.y; 
+        skinned += boneMatZ * skinVertex * skinWeight.z; 
+        skinned += boneMatW * skinVertex * skinWeight.w; 
         skinned = bindMatrixInverse * skinned; 
         
         vec4 mvPosition = modelViewMatrix * skinned; 
@@ -92,11 +92,7 @@
     var pMatrix = mat4.create();
 
     var shaderProgram;
-    
-    var renderer;
-    var scene;
-    var camera;
-
+   
     function initGL(canvas) {
         try {
             gl = canvas.getContext("webgl");
@@ -106,13 +102,6 @@
         if (!gl) {
             alert("Could not initialise WebGL, sorry :-( ");
         }
-        
-        
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('lesson01-canvas') });
-        renderer.setClearColor( 0x000000, 0 );
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
-        camera.position.z = 1000;
     }
 
     function getShader(gl, id) {
@@ -196,7 +185,9 @@
     }
 
     function drawScene() {
-        gl.useProgram(shaderProgram);
+        // limpa tela
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         // ajusta perspectiva, posicionamento e tamanho
         mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 1, 100, pMatrix);
@@ -227,23 +218,18 @@
 
     }
     
-    function drawScene2() {
-       renderer.render( scene, camera );
-    }
-    
 	function handleLoadedTexture(texture) {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+    }
+	
+    function handleLoadedTexture(texture) {
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
         
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+        gl.bindTexture( gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mesh.material.map.image);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.bindTexture(gl.TEXTURE_2D, null);
     
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.uniform1i(shaderProgram.sampler, 0);
-    
-        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0); 
     }
 	
     function initTexture() {
@@ -252,7 +238,7 @@
         texture.image.onload = function () {
             handleLoadedTexture(texture)
         }
-        texture.image.src = "texture.png";
+        texture.image.src = "Test.png";
     }
 
     function initBuffers() {
@@ -343,7 +329,7 @@
     var cont = 0;
     function animate() {
         if(animation){
-            animation.update(clock.getDelta());
+            THREE.AnimationHandler.update( clock.getDelta() );
             mesh.updateMatrixWorld();
             mesh.skeleton.update();
             
@@ -358,7 +344,6 @@
     function tick() {
         requestAnimFrame(tick);
         animate();
-        drawScene2();
         drawScene();
     }
 
@@ -367,9 +352,10 @@
 
         var loader = new THREE.JSONLoader();
         loader.load("female.json", function (geometry, materials) {
-            console.log(arguments);
-
-            mesh = new THREE.SkinnedMesh(geometry);
+            var originalMaterial = materials[ 0 ];
+            originalMaterial.skinning = true;
+            
+            mesh = new THREE.SkinnedMesh(geometry, originalMaterial);
             animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
             animation.play();
 
@@ -379,8 +365,6 @@
             initShaders();
             initBuffers();
             initTexture();
-            
-            scene.add(mesh);
             
             // limpa tela
             gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
