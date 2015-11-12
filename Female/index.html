@@ -26,18 +26,17 @@
         camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
         camera.position.z = 1000;
 
-       	var loader = new THREE.ColladaLoader();
-		loader.load( "female.dae", function(collada){
-            mesh = collada.scene;
+       	var loader = new THREE.JSONLoader();
+		loader.load( "female.json", function (geometry, materials) {
+            var originalMaterial = materials[ 0 ];
+            originalMaterial.skinning = true;
             
-            mesh.traverse( function ( child ) {
-                if ( child instanceof THREE.SkinnedMesh ) {
-                    animation = new THREE.Animation( child, child.geometry.animation );
-                    animation.play();
-                }
-            } );
+            mesh = new THREE.SkinnedMesh(geometry, originalMaterial);
             
-            console.log(collada);
+            animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
+            animation.play();
+            
+            console.log(mesh);
                 
             mesh.scale.x = mesh.scale.y = mesh.scale.z = 400;
             mesh.updateMatrix();
@@ -46,7 +45,7 @@
             scene.add( new THREE.AmbientLight( 0xcccccc ) );
             
             var light = new THREE.DirectionalLight( 0xffffff, 1.5 );
-            light.position.set( 0, -4, -4 ).normalize();
+            light.position.set( 1, 2, 1 ).normalize();
             scene.add( light );
             
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -62,10 +61,8 @@
 
         requestAnimationFrame( animate );
 
-        //THREE.AnimationHandler.update( clock.getDelta() );
         renderer.render( scene, camera );
-        animation.update(0.01);
-
+        THREE.AnimationHandler.update( clock.getDelta() );
     }
 </script>
 </html>

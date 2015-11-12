@@ -367,6 +367,7 @@
 
         var loader = new THREE.JSONLoader();
         loader.load("female.json", function (geometry, materials) {
+            console.log(arguments);
 
             mesh = new THREE.SkinnedMesh(geometry);
             animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
