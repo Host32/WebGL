@@ -1,0 +1,399 @@
+<html>
+
+<head>
+    <title>Lesson 1</title>
+</head>
+<script src="../Vendor/gl-matrix.js"></script>
+<script src="../Vendor/webgl-utils.js"></script>
+<script src="../Vendor/three.js"></script>
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float; 
+    
+    varying vec2 vTextureCoord;
+    
+    uniform sampler2D sampler;
+    
+    void main(void) { 
+        gl_FragColor = texture2D(sampler, vec2(vTextureCoord.s, vTextureCoord.t));
+        //gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0); 
+    }
+</script>
+<script type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition; 
+    uniform mat4 uMVMatrix; 
+    uniform mat4 uPMatrix; 
+    void main(void) { 
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); 
+    }
+</script>
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 position; 
+    attribute vec4 skinIndex; 
+    attribute vec4 skinWeight; 
+    attribute vec2 textureCoord;
+    
+    uniform mat4 modelViewMatrix; 
+    uniform mat4 projectionMatrix; 
+    uniform mat4 bindMatrix; 
+    uniform mat4 bindMatrixInverse; 
+    uniform mat4 boneGlobalMatrices[ 70 ];
+    
+    varying vec2 vTextureCoord; 
+    
+    mat4 getBoneMatrix( const in float i ) { 
+        mat4 bone = boneGlobalMatrices[ int(i) ]; 
+        return bone;
+    } 
+    
+    void main(void) { 
+        vec3 transformed = vec3( position ); 
+        mat4 boneMatX = getBoneMatrix( skinIndex.x ); 
+        mat4 boneMatY = getBoneMatrix( skinIndex.y ); 
+        mat4 boneMatZ = getBoneMatrix( skinIndex.z ); 
+        mat4 boneMatW = getBoneMatrix( skinIndex.w ); 
+        
+        vec4 skinVertex = bindMatrix * vec4( transformed, 1.0 ); 
+        
+        vec4 skinned = vec4( 0.0 ); 
+        skinned += boneMatZ * skinVertex * skinWeight.x; 
+        skinned += boneMatW * skinVertex * skinWeight.y; 
+        skinned += boneMatY * skinVertex * skinWeight.z; 
+        skinned += boneMatX * skinVertex * skinWeight.w;  
+        skinned = bindMatrixInverse * skinned; 
+        
+        vec4 mvPosition = modelViewMatrix * skinned; 
+        
+        gl_Position = projectionMatrix * mvPosition; 
+        
+        vTextureCoord = textureCoord;
+    }
+</script>
+<script type="text/javascript">
+    var gl;
+    var clock = new THREE.Clock();
+
+    var vertexPositionBuffer;
+    var vertexIndexBuffer;
+    var skinIndexBuffer;
+    var skinWeightBuffer;
+    var textureCoordBuffer;
+
+    var vertices;
+    var indices;
+    var skinIndices;
+    var skinWeights;
+    var textureCoords;
+    var texture;
+
+    var animation;
+    var mesh;
+
+    var mvMatrix = mat4.create();
+    var pMatrix = mat4.create();
+
+    var shaderProgram;
+    
+    var renderer;
+    var scene;
+    var camera;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("webgl");
+            gl.viewportWidth = canvas.width;
+            gl.viewportHeight = canvas.height;
+        } catch (e) {}
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-( ");
+        }
+        
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: document.getElementById('lesson01-canvas') });
+        renderer.setClearColor( 0x000000, 0 );
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
+        camera.position.z = 1000;
+    }
+
+    function getShader(gl, id) {
+        var shaderScript = document.getElementById(id);
+        if (!shaderScript) {
+            return null;
+        }
+
+        var str = "";
+        var k = shaderScript.firstChild;
+        while (k) {
+            if (k.nodeType == 3)
+                str += k.textContent;
+            k = k.nextSibling;
+        }
+
+        var shader;
+        if (shaderScript.type == "x-shader/x-fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } else if (shaderScript.type == "x-shader/x-vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } else {
+            return null;
+        }
+
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+    function degToRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
+
+    function initShaders() {
+        // cria as shaders
+        var fragmentShader = getShader(gl, "shader-fs");
+        var vertexShader = getShader(gl, "shader-vs");
+
+        // prepara o program
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+        gl.useProgram(shaderProgram);
+
+        // prepara os atributos
+        shaderProgram.position = gl.getAttribLocation(shaderProgram, "position");
+        gl.enableVertexAttribArray(shaderProgram.position);
+        shaderProgram.skinIndex = gl.getAttribLocation(shaderProgram, "skinIndex");
+        gl.enableVertexAttribArray(shaderProgram.skinIndex);
+        shaderProgram.skinWeight = gl.getAttribLocation(shaderProgram, "skinWeight");
+        gl.enableVertexAttribArray(shaderProgram.skinWeight);
+        shaderProgram.textureCoord = gl.getAttribLocation(shaderProgram, "textureCoord");
+        gl.enableVertexAttribArray(shaderProgram.textureCoord);
+
+        // prepara as uniforms
+        shaderProgram.projectionMatrix = gl.getUniformLocation(shaderProgram, "projectionMatrix");
+        shaderProgram.modelViewMatrix = gl.getUniformLocation(shaderProgram, "modelViewMatrix");
+        shaderProgram.bindMatrix = gl.getUniformLocation(shaderProgram, "bindMatrix");
+        shaderProgram.bindMatrixInverse = gl.getUniformLocation(shaderProgram, "bindMatrixInverse");
+        shaderProgram.boneGlobalMatrices = gl.getUniformLocation(shaderProgram, "boneGlobalMatrices");
+        shaderProgram.sampler = gl.getUniformLocation(shaderProgram, "sampler");
+    }
+
+    function setMatrixUniforms() {
+        gl.uniformMatrix4fv(shaderProgram.projectionMatrix, false, pMatrix);
+        gl.uniformMatrix4fv(shaderProgram.modelViewMatrix, false, mvMatrix);
+        gl.uniformMatrix4fv(shaderProgram.bindMatrix, false, mesh.bindMatrix.elements);
+        gl.uniformMatrix4fv(shaderProgram.bindMatrixInverse, false, mesh.bindMatrixInverse.elements);
+        gl.uniformMatrix4fv(shaderProgram.boneGlobalMatrices, false, mesh.skeleton.boneMatrices);
+    }
+
+    function drawScene() {
+        gl.useProgram(shaderProgram);
+
+        // ajusta perspectiva, posicionamento e tamanho
+        mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 1, 100, pMatrix);
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [0.0, 0.0, -5.0]);
+        setMatrixUniforms();
+
+        // envia os indices de skin pra shader
+        gl.bindBuffer(gl.ARRAY_BUFFER, skinIndexBuffer);
+        gl.vertexAttribPointer(shaderProgram.skinIndex, skinIndexBuffer.itemSize, gl.UNSIGNED_SHORT, false, 0, 0);
+
+        // envia os pesos de skin pra shader
+        gl.bindBuffer(gl.ARRAY_BUFFER, skinWeightBuffer);
+        gl.vertexAttribPointer(shaderProgram.skinWeight, skinWeightBuffer.itemSize, gl.FLOAT, false, 0, 0);
+        
+        // envia a textura para a shader
+		gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+		gl.vertexAttribPointer(shaderProgram.textureCoord, textureCoordBuffer.itemSize, gl.FLOAT, false, 0,0);
+
+        // envia os vertices pra shader
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.position, vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+        // envia os indices pra shader
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
+        setMatrixUniforms();
+        gl.drawElements(gl.TRIANGLES, vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+
+    }
+    
+    function drawScene2() {
+       renderer.render( scene, camera );
+    }
+    
+	function handleLoadedTexture(texture) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.uniform1i(shaderProgram.sampler, 0);
+    
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0); 
+    }
+	
+    function initTexture() {
+        texture = gl.createTexture();
+        texture.image = new Image();
+        texture.image.onload = function () {
+            handleLoadedTexture(texture)
+        }
+        texture.image.src = "texture.png";
+    }
+
+    function initBuffers() {
+        vertices = [];
+        indices = [];
+        skinIndices = [];
+        skinWeights = [];
+        textureCoords = [];
+
+        var geometry = mesh.geometry;
+
+        // converte os vertices do THREEjs
+        for (var i = 0; i < geometry.vertices.length; i++) {
+            vertices.push(geometry.vertices[i].x);
+            vertices.push(geometry.vertices[i].y);
+            vertices.push(geometry.vertices[i].z);
+        }
+
+        // converte os indices do THREEjs
+        for (var i = 0; i < geometry.faces.length; i++) {
+            indices.push(geometry.faces[i].a);
+            indices.push(geometry.faces[i].b);
+            indices.push(geometry.faces[i].c);
+        }
+        
+        // converte o mapa UV do THREEjs
+        for (var i = 0; i < geometry.faceVertexUvs[0].length; i++) {
+            textureCoords.push(geometry.faceVertexUvs[0][i][0].x);
+            textureCoords.push(geometry.faceVertexUvs[0][i][0].y);
+            textureCoords.push(geometry.faceVertexUvs[0][i][1].x);
+            textureCoords.push(geometry.faceVertexUvs[0][i][1].y);
+            textureCoords.push(geometry.faceVertexUvs[0][i][2].x);
+            textureCoords.push(geometry.faceVertexUvs[0][i][2].y);
+        }
+
+        // converte os indices de Skin do THREEjs
+        for (var i = 0; i < geometry.skinIndices.length; i++) {
+            skinIndices.push(geometry.skinIndices[i].x);
+            skinIndices.push(geometry.skinIndices[i].y);
+            skinIndices.push(geometry.skinIndices[i].z);
+            skinIndices.push(geometry.skinIndices[i].w);
+        }
+
+        // converte os pesos de Skin do THREEjs
+        for (var i = 0; i < geometry.skinWeights.length; i++) {
+            skinWeights.push(geometry.skinWeights[i].x);
+            skinWeights.push(geometry.skinWeights[i].y);
+            skinWeights.push(geometry.skinWeights[i].z);
+            skinWeights.push(geometry.skinWeights[i].w);
+        }
+
+        // prepara o buffer de vertices
+        vertexPositionBuffer = gl.createBuffer();
+        vertexPositionBuffer.itemSize = 3;
+        vertexPositionBuffer.numItems = vertices.length / 3;
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+
+        // prepara o buffer de indices
+        vertexIndexBuffer = gl.createBuffer();
+        vertexIndexBuffer.itemSize = 1;
+        vertexIndexBuffer.numItems = indices.length;
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+
+        // prepara o buffer de indices de skin
+        skinIndexBuffer = gl.createBuffer();
+        skinIndexBuffer.itemSize = 4;
+        skinIndexBuffer.numItems = skinIndices.length / 4;
+        gl.bindBuffer(gl.ARRAY_BUFFER, skinIndexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Uint16Array(skinIndices), gl.STATIC_DRAW);
+
+        // prepara o buffer de pesos de skin
+        skinWeightBuffer = gl.createBuffer();
+        skinWeightBuffer.itemSize = 4;
+        skinWeightBuffer.numItems = skinWeights.length / 4;
+        gl.bindBuffer(gl.ARRAY_BUFFER, skinWeightBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(skinWeights), gl.STATIC_DRAW);
+        
+        // prepara o buffer de UV
+        textureCoordBuffer = gl.createBuffer();
+		textureCoordBuffer.itemSize = 2;
+		textureCoordBuffer.numItems = textureCoords.length / 2;
+        gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords), gl.STATIC_DRAW);
+    }
+    
+    var cont = 0;
+    function animate() {
+        if(animation){
+            animation.update(clock.getDelta());
+            mesh.updateMatrixWorld();
+            mesh.skeleton.update();
+            
+            if(cont < 1){
+                console.log(animation);
+                console.log(mesh);
+                cont++;
+            }
+        }
+    }
+
+    function tick() {
+        requestAnimFrame(tick);
+        animate();
+        drawScene2();
+        drawScene();
+    }
+
+    function webGLStart() {
+        var canvas = document.getElementById("lesson01-canvas");
+
+        var loader = new THREE.JSONLoader();
+        loader.load("female.json", function (geometry, materials) {
+
+            mesh = new THREE.SkinnedMesh(geometry);
+            animation = new THREE.Animation( mesh, mesh.geometry.animations[0] );
+            animation.play();
+
+            console.log(mesh);
+
+            initGL(canvas);
+            initShaders();
+            initBuffers();
+            initTexture();
+            
+            scene.add(mesh);
+            
+            // limpa tela
+            gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.enable(gl.DEPTH_TEST);
+
+            tick();
+        });
+    }
+</script>
+
+<body onload="webGLStart();">
+    <canvas id="lesson01-canvas" style="border: none;" width="500" height="500"></canvas>
+</body>
+
+</html>
