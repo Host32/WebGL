@@ -10,19 +10,14 @@
     precision mediump float; 
     
     varying vec2 vTextureCoord;
+    varying vec3 vLighting;
     
     uniform sampler2D sampler;
     
     void main(void) { 
-        gl_FragColor = texture2D(sampler, vTextureCoord);
-    }
-</script>
-<script type="x-shader/x-vertex">
-    attribute vec3 aVertexPosition; 
-    uniform mat4 uMVMatrix; 
-    uniform mat4 uPMatrix; 
-    void main(void) { 
-        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0); 
+        vec4 texture = texture2D(sampler, vTextureCoord);
+       
+        gl_FragColor = vec4(texture.rgb * vLighting, texture.a);
     }
 </script>
 <script id="shader-vs" type="x-shader/x-vertex">
@@ -30,6 +25,7 @@
     attribute vec4 skinIndex; 
     attribute vec4 skinWeight; 
     attribute vec2 textureCoord;
+    attribute vec3 vertexNormal;
     
     uniform mat4 modelViewMatrix; 
     uniform mat4 projectionMatrix; 
@@ -37,21 +33,33 @@
     uniform mat4 bindMatrixInverse; 
     uniform mat4 boneGlobalMatrices[ 70 ];
     
+    uniform vec3 lightAmbient;
+    uniform vec3 lightDirection;
+    uniform vec3 lightDiffuse;
+    uniform float lightOpacity;
+    
     varying vec2 vTextureCoord;
+    varying vec3 vLighting;
     
     mat4 getBoneMatrix( const in float i ) { 
         mat4 bone = boneGlobalMatrices[ int(i) ]; 
         return bone;
     } 
     
+    // A "manual" rotation matrix transpose to get the normal matrix
+    mat3 getNormalMat(mat4 mat) {
+        return mat3(mat[0][0], mat[1][0], mat[2][0], mat[0][1], mat[1][1], mat[2][1], mat[0][2], mat[1][2], mat[2][2]);
+    }
+    
     void main(void) { 
-        vec3 transformed = vec3( position ); 
+        // bone mats
         mat4 boneMatX = getBoneMatrix( skinIndex.x ); 
         mat4 boneMatY = getBoneMatrix( skinIndex.y ); 
         mat4 boneMatZ = getBoneMatrix( skinIndex.z ); 
-        mat4 boneMatW = getBoneMatrix( skinIndex.w ); 
+        mat4 boneMatW = getBoneMatrix( skinIndex.w );
         
-        vec4 skinVertex = bindMatrix * vec4( transformed, 1.0 ); 
+        // apply bone transform
+        vec4 skinVertex = bindMatrix * vec4( position, 1.0 ); 
         
         vec4 skinned = vec4( 0.0 ); 
         skinned += boneMatX * skinVertex * skinWeight.x; 
@@ -59,12 +67,23 @@
         skinned += boneMatZ * skinVertex * skinWeight.z; 
         skinned += boneMatW * skinVertex * skinWeight.w; 
         skinned = bindMatrixInverse * skinned; 
-        
         vec4 mvPosition = modelViewMatrix * skinned; 
-        
         gl_Position = projectionMatrix * mvPosition; 
         
+        // pass texture to shader
         vTextureCoord = textureCoord;
+        
+        // transform normal
+        mat4 accumulateSkinMat = skinWeight.x * boneMatX;
+        accumulateSkinMat += skinWeight.y * boneMatY;
+        accumulateSkinMat += skinWeight.z * boneMatZ;
+        
+        mat3 normalMat = getNormalMat(modelViewMatrix * accumulateSkinMat);
+        vec3 transformedNormal = vertexNormal * normalMat;
+        
+        // calculate light
+        float lightFactor = max(dot(normalize(lightDirection), normalize(transformedNormal.xyz)), 0.0);
+        vLighting = lightAmbient + (lightDiffuse * lightFactor);
     }
 </script>
 <script type="text/javascript">
@@ -72,13 +91,14 @@
     var clock = new THREE.Clock();
 
     var vertexPositionBuffer;
-    var vertexIndexBuffer;
+    var vertexNormalBuffer;
     var skinIndexBuffer;
     var skinWeightBuffer;
     var textureCoordBuffer;
 
     var vertices;
     var indices;
+    var normals;
     var skinIndices;
     var skinWeights;
     var textureCoords;
@@ -165,6 +185,8 @@
         gl.enableVertexAttribArray(shaderProgram.skinWeight);
         shaderProgram.textureCoord = gl.getAttribLocation(shaderProgram, "textureCoord");
         gl.enableVertexAttribArray(shaderProgram.textureCoord);
+        shaderProgram.vertexNormal = gl.getAttribLocation(shaderProgram, "vertexNormal");
+        gl.enableVertexAttribArray(shaderProgram.vertexNormal);
 
         // prepara as uniforms
         shaderProgram.projectionMatrix = gl.getUniformLocation(shaderProgram, "projectionMatrix");
@@ -173,6 +195,10 @@
         shaderProgram.bindMatrixInverse = gl.getUniformLocation(shaderProgram, "bindMatrixInverse");
         shaderProgram.boneGlobalMatrices = gl.getUniformLocation(shaderProgram, "boneGlobalMatrices");
         shaderProgram.sampler = gl.getUniformLocation(shaderProgram, "sampler");
+        shaderProgram.lightAmbient = gl.getUniformLocation(shaderProgram, "lightAmbient");
+        shaderProgram.lightDiffuse = gl.getUniformLocation(shaderProgram, "lightDiffuse");
+        shaderProgram.lightOpacity = gl.getUniformLocation(shaderProgram, "lightOpacity");
+        shaderProgram.lightDirection = gl.getUniformLocation(shaderProgram, "lightDirection");
     }
 
     function setMatrixUniforms() {
@@ -181,6 +207,11 @@
         gl.uniformMatrix4fv(shaderProgram.bindMatrix, false, mesh.bindMatrix.elements);
         gl.uniformMatrix4fv(shaderProgram.bindMatrixInverse, false, mesh.bindMatrixInverse.elements);
         gl.uniformMatrix4fv(shaderProgram.boneGlobalMatrices, false, mesh.skeleton.boneMatrices);
+        
+        gl.uniform3fv(shaderProgram.lightAmbient, [0.6, 0.6, 0.6]);
+        gl.uniform3fv(shaderProgram.lightDiffuse, [0.5, 0.5, 0.5]);
+        gl.uniform3fv(shaderProgram.lightDirection, [0.0, 1.0, 0.0]);
+        gl.uniform1f(shaderProgram.lightOpacity, 0.3);
     }
 
     function drawScene() {
@@ -206,13 +237,16 @@
         // envia a textura para a shader
 		gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
 		gl.vertexAttribPointer(shaderProgram.textureCoord, textureCoordBuffer.itemSize, gl.FLOAT, false, 0,0);
+        
+        // envia a normal para a shader
+		gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+		gl.vertexAttribPointer(shaderProgram.vertexNormal, vertexNormalBuffer.itemSize, gl.FLOAT, false, 0,0);
 
         // envia os vertices pra shader
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
         gl.vertexAttribPointer(shaderProgram.position, vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
         // envia os indices pra shader
-        setMatrixUniforms();
         gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems);
 
     }
@@ -245,6 +279,7 @@
         skinIndices = [];
         skinWeights = [];
         textureCoords = [];
+        normals = [];
 
         var geometry = mesh.geometry;
 
@@ -253,6 +288,18 @@
             indices.push(geometry.faces[i].a);
             indices.push(geometry.faces[i].b);
             indices.push(geometry.faces[i].c);
+            
+            normals.push(geometry.faces[i].vertexNormals[0].x);
+            normals.push(geometry.faces[i].vertexNormals[0].y);
+            normals.push(geometry.faces[i].vertexNormals[0].z);
+            
+            normals.push(geometry.faces[i].vertexNormals[1].x);
+            normals.push(geometry.faces[i].vertexNormals[1].y);
+            normals.push(geometry.faces[i].vertexNormals[1].z);
+            
+            normals.push(geometry.faces[i].vertexNormals[2].x);
+            normals.push(geometry.faces[i].vertexNormals[2].y);
+            normals.push(geometry.faces[i].vertexNormals[2].z);
         }
         
         // converte os vertices do THREEjs
@@ -316,8 +363,12 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords), gl.STATIC_DRAW);
         
-        console.log(textureCoords);
-        console.log(new Float32Array(textureCoords));
+        // prepara o buffer de UV
+        vertexNormalBuffer = gl.createBuffer();
+		vertexNormalBuffer.itemSize = 3;
+		vertexNormalBuffer.numItems = normals.length / 3;
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
     }
     
     var cont = 0;
