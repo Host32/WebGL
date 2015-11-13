@@ -193,7 +193,6 @@
         mat4.identity(mvMatrix);
         mat4.translate(mvMatrix, [0.0, -1.0, -5.0]);
         mat4.scale(mvMatrix, [2,2,2]);
-        mat4.rotateY(mvMatrix, degToRad(270));
         setMatrixUniforms();
 
         // envia os indices de skin pra shader
@@ -213,9 +212,8 @@
         gl.vertexAttribPointer(shaderProgram.position, vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
         // envia os indices pra shader
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
         setMatrixUniforms();
-        gl.drawElements(gl.TRIANGLES, vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, vertexPositionBuffer.numItems);
 
     }
 	
@@ -250,13 +248,6 @@
 
         var geometry = mesh.geometry;
 
-        // converte os vertices do THREEjs
-        for (var i = 0; i < geometry.vertices.length; i++) {
-            vertices.push(geometry.vertices[i].x);
-            vertices.push(geometry.vertices[i].y);
-            vertices.push(geometry.vertices[i].z);
-        }
-
         // converte os indices do THREEjs
         for (var i = 0; i < geometry.faces.length; i++) {
             indices.push(geometry.faces[i].a);
@@ -264,32 +255,37 @@
             indices.push(geometry.faces[i].c);
         }
         
-        // converte o mapa UV do THREEjs
-        var uvs = [];
-        for (var i = 0; i < geometry.faceVertexUvs[0].length; i++) {
-            uvs[geometry.faces[i].a] = geometry.faceVertexUvs[0][i][0];
-            uvs[geometry.faces[i].b] = geometry.faceVertexUvs[0][i][1];
-            uvs[geometry.faces[i].c] = geometry.faceVertexUvs[0][i][2];
+        // converte os vertices do THREEjs
+        for (var i = 0; i < indices.length; i++) {
+            vertices.push(geometry.vertices[indices[i]].x);
+            vertices.push(geometry.vertices[indices[i]].y);
+            vertices.push(geometry.vertices[indices[i]].z);
         }
-        for (var i = 0; i < uvs.length; i++) {
-            textureCoords.push(uvs[i].x);
-            textureCoords.push(uvs[i].y);
+        
+        // converte o mapa UV do THREEjs
+        for (var i = 0; i < geometry.faceVertexUvs[0].length; i++) {
+            textureCoords.push(geometry.faceVertexUvs[0][i][0].x);
+            textureCoords.push(geometry.faceVertexUvs[0][i][0].y);
+            textureCoords.push(geometry.faceVertexUvs[0][i][1].x);
+            textureCoords.push(geometry.faceVertexUvs[0][i][1].y);
+            textureCoords.push(geometry.faceVertexUvs[0][i][2].x);
+            textureCoords.push(geometry.faceVertexUvs[0][i][2].y);
         }
         
         // converte os indices de Skin do THREEjs
-        for (var i = 0; i < geometry.skinIndices.length; i++) {
-            skinIndices.push(geometry.skinIndices[i].x);
-            skinIndices.push(geometry.skinIndices[i].y);
-            skinIndices.push(geometry.skinIndices[i].z);
-            skinIndices.push(geometry.skinIndices[i].w);
+        for (var i = 0; i < indices.length; i++) {
+            skinIndices.push(geometry.skinIndices[indices[i]].x);
+            skinIndices.push(geometry.skinIndices[indices[i]].y);
+            skinIndices.push(geometry.skinIndices[indices[i]].z);
+            skinIndices.push(geometry.skinIndices[indices[i]].w);
         }
 
         // converte os pesos de Skin do THREEjs
-        for (var i = 0; i < geometry.skinWeights.length; i++) {
-            skinWeights.push(geometry.skinWeights[i].x);
-            skinWeights.push(geometry.skinWeights[i].y);
-            skinWeights.push(geometry.skinWeights[i].z);
-            skinWeights.push(geometry.skinWeights[i].w);
+        for (var i = 0; i < indices.length; i++) {
+            skinWeights.push(geometry.skinWeights[indices[i]].x);
+            skinWeights.push(geometry.skinWeights[indices[i]].y);
+            skinWeights.push(geometry.skinWeights[indices[i]].z);
+            skinWeights.push(geometry.skinWeights[indices[i]].w);
         }
 
         // prepara o buffer de vertices
@@ -298,14 +294,7 @@
         vertexPositionBuffer.numItems = vertices.length / 3;
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-
-        // prepara o buffer de indices
-        vertexIndexBuffer = gl.createBuffer();
-        vertexIndexBuffer.itemSize = 1;
-        vertexIndexBuffer.numItems = indices.length;
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-
+        
         // prepara o buffer de indices de skin
         skinIndexBuffer = gl.createBuffer();
         skinIndexBuffer.itemSize = 4;
