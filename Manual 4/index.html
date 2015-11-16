@@ -83,7 +83,7 @@
         
         // calculate light
         float lightFactor = max(dot(normalize(lightDirection), normalize(transformedNormal.xyz)), 0.0);
-        vLighting = lightAmbient + (lightDiffuse * lightFactor);
+        vLighting = (lightAmbient * lightOpacity) + (lightDiffuse * lightFactor);
     }
 </script>
 <script type="text/javascript">
